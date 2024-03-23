@@ -29,7 +29,7 @@ class MailChannel(models.Model):
         # Send message with SuperUser (OdooBot)
         odoobot_id = self.env['ir.model.data']._xmlid_to_res_id("base.partner_root")
         self.with_context(mail_create_nosubscribe=True).sudo().message_post(
-            body="msg",
+            body=msg,
             author_id=odoobot_id,
             message_type='comment',
             subtype_xmlid='mail.mt_comment'
