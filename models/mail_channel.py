@@ -2,13 +2,34 @@
 
 from odoo import models, _
 from odoo.tools import html2plaintext, plaintext2html
+from odoo import api, fields, models
+import logging
+from langchain_community.utilities.sql_database import SQLDatabase
+from langchain.chains import create_sql_query_chain
+from langchain_community.chat_models import ChatOpenAI
+import psycopg2
+
 
 COMMAND_AI = '/ai'
 
+_logger = logging.getLogger(__name__)
+
 class MailChannel(models.Model):
-    _inherit = 'mail.channel'
-
-
+    _inherit = ['mail.channel']
+        
+    def query(self, **kwargs):
+        db = SQLDatabase.from_uri("postgresql://postgres:postgres@44.209.57.188:5432/Prueba")
+        llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, api_key="sk-proj-bGFMPLnpueNgZQHRBMwOT3BlbkFJs8MfQFqr7CoHPrftQunw", max_tokens=100)
+        agent_executor = create_sql_query_chain(llm, db=db)
+        response = agent_executor.invoke({"question": "Who is the email for Theodore Gardner ?"})
+        _logger.info("ENTROOOOOOOOOOOOOOOOOOOOOOOOOOOOO: "+ str(response))
+        #conn = psycopg2.connect("postgresql://odoo:rcls271173!@localhost:5432/db_prueba")
+        #cursor = conn.cursor()
+        #cursor.execute('SELECT "email" FROM res_partner WHERE "name" = %s LIMIT 5;', ("Theodore Gardner",))
+        #res_sql= cursor.fetchall()
+        #_logger.info("ENTROOOOOOOOOOOOOOOOOOOOOOOOOOOOO: "+ str(res_sql))
+        return response
+    
     def execute_command_ai(self, **kwargs):
         msg = _('Oops! Something went wrong!')
 
@@ -19,8 +40,21 @@ class MailChannel(models.Model):
             if not body or body == COMMAND_AI or not body.startswith(COMMAND_AI):
                 msg = _('Ask something to the AI by simply typing "/ai "followed by the prompt. For example "/ai What is Odoo?"')
             else:
-                msg = self._execute_command_ai(
-                    partner=partner,
+                if self.name == "Lead Assistant Channel":
+                    msg_lead_assitant_channel = html2plaintext(body[len(COMMAND_AI):]).strip()
+                    _logger.info("VARIABLE (Lead Assistant Channel): " + msg_lead_assitant_channel)
+                    _logger.info("VARIABLE (message_follower_ids): " + str(self.message_follower_ids))
+                    _logger.info("VARIABLE (is_member): " + str(self.is_member))
+                    _logger.info("VARIABLE (message_is_follower): " + str(self.message_is_follower))
+                    _logger.info("VARIABLE: message_ids" + str(self.message_ids))
+                    
+                    msg = self._execute_command_ai(
+                        partner=partner,    
+                        prompt=html2plaintext(body[len(COMMAND_AI):]).strip()
+                    )
+                else:
+                    msg = self._execute_command_ai(
+                    partner=partner,    
                     prompt=html2plaintext(body[len(COMMAND_AI):]).strip()
                 )
         except Exception as e:
@@ -38,8 +72,17 @@ class MailChannel(models.Model):
 
     def _execute_command_ai(self, partner, prompt):
         response = _('NO RESPONSE!! Please check settings')
-
-        if self.env.user.odoogpt_chat_method == 'completion':
+       
+        
+        if self.name == "SQL Management Assistant":
+            langchain_response = self.query()
+            _logger.info("ENTROOOOOOOOOOOOOOOOOOOOOOOOOOOOO: "+ str(self.name))
+            _logger.info("ENTRO: "+ str(langchain_response))
+            return _("""{0} asked <i>\"{1}\"</i> <br /> {2}""").format(
+            self._ping_partners(partner),
+            prompt,
+            plaintext2html(langchain_response))        
+        elif self.env.user.odoogpt_chat_method == 'completion':
             response = self.env['odoogpt.openai.utils'].completition_create(
                 prompt=self._execute_command_ai__build_prompt_completion(prompt)
             )
@@ -47,12 +90,10 @@ class MailChannel(models.Model):
             response = self.env['odoogpt.openai.utils'].chat_completion_create(
                 messages=self._execute_command_ai__build_prompt_chat_completion(prompt)
             )
-
-        return _("""{0} asked <i>\"{1}\"</i> <br /> {2}""").format(
+            return _("""{0} asked <i>\"{1}\"</i> <br /> {2}""").format(
             self._ping_partners(partner),
             prompt,
-            plaintext2html(response)
-        )
+            plaintext2html(response))
 
     def _execute_command_ai__build_prompt_completion(self, prompt):
         """Build the message to send to OpenAI Completition api"""
@@ -69,8 +110,6 @@ class MailChannel(models.Model):
             {'role': 'system', 'content': self.env.user.odoogpt_chat_system_message},
             {'role': 'user', 'content': prompt},
         ]
-
-
 
     # UTILS
 

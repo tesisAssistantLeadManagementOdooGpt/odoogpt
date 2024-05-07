@@ -19,9 +19,7 @@
         'mail_bot',
     ],
     'external_dependencies': {
-        'python': [
-            'openai'
-        ]
+        'python': ['openai', 'langchain']
     },
 
     'data': [

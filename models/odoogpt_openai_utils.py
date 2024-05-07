@@ -113,7 +113,7 @@ class OdoogptOpenaiUtils(models.AbstractModel):
     def chat_completion_create(self, messages, **kwargs):
         """Create a Chat Completition. Ref. https://platform.openai.com/docs/api-reference/chat/create"""
         response = openai.ChatCompletion.create(
-            messages="messages",
+            messages=messages,
             **{
                 **self._completition_create__get_parameters(),
                 **kwargs,
